@@ -10,11 +10,12 @@ export class WhatsappService {
     private http: HttpService,
   ) {}
 
-  GUPSHUP_API_URL = 'https://api.gupshup.io/sm/api/v1/msg';
+  GUPSHUP_API_URL = 'https://api.gupshup.io/wa/api/v1/msg';
   GUPSHUP_API_KEY = process.env.GUPSHUP_API_KEY;
   BOT_PHONE_NUMBER = '15557712559';
 
   async handleIncoming(body: any) {
+    console.log({ GUPSHUP_API_KEY: process.env.GUPSHUP_API_KEY });
     const message = body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
     const phone = message?.from;
     const text = message?.text?.body;
