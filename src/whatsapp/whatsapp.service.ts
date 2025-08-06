@@ -15,9 +15,13 @@ export class WhatsappService {
   BOT_PHONE_NUMBER = '15557712559';
 
   async handleIncoming(body: any) {
+    console.log({ body });
     const incoming = body.payload?.payload || {};
+    console.log({ incoming });
     const text = incoming.text;
+    console.log({ text });
     const phone = incoming.sender?.phone;
+    console.log({ phone });
 
     if (!text || !phone) return;
 
