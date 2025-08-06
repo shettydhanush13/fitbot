@@ -41,7 +41,7 @@ export class WhatsappService {
       channel: 'whatsapp',
       source: this.BOT_PHONE_NUMBER,      // your sandbox number
       destination: phone,
-      'src.name': 'your_bot_name',        // replace with your bot name
+      'src.name': 'fitbot',        // replace with your bot name
       message: JSON.stringify({           // stringify the message object
         type: 'text',
         text: message,
@@ -53,7 +53,7 @@ export class WhatsappService {
       apikey: this.GUPSHUP_API_KEY,
     };
   
-    await firstValueFrom(this.http.post(this.GUPSHUP_API_URL, body, { headers }));
+    const response = await firstValueFrom(this.http.post(this.GUPSHUP_API_URL, body, { headers }));
+    console.log({ response });
   }
-  
 }
