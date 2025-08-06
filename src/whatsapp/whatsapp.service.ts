@@ -48,7 +48,7 @@ export class WhatsappService {
     };
 
     const headers = {
-      'Content-Type': 'application/json',
+      'Content-Type': 'application/x-www-form-urlencoded',
       apikey: this.GUPSHUP_API_KEY,
     };
 
