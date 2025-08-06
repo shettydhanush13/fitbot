@@ -37,23 +37,23 @@ export class WhatsappService {
   }
 
   async sendMessage(phone: string, message: string) {
-    const payload = {
+    const body = new URLSearchParams({
       channel: 'whatsapp',
-      source: this.BOT_PHONE_NUMBER,
+      source: this.BOT_PHONE_NUMBER,      // your sandbox number
       destination: phone,
-      message: {
+      'src.name': 'your_bot_name',        // replace with your bot name
+      message: JSON.stringify({           // stringify the message object
         type: 'text',
         text: message,
-      },
-    };
-
+      }),
+    });
+  
     const headers = {
       'Content-Type': 'application/x-www-form-urlencoded',
       apikey: this.GUPSHUP_API_KEY,
     };
-
-    await firstValueFrom(
-      this.http.post(this.GUPSHUP_API_URL, payload, { headers })
-    );
+  
+    await firstValueFrom(this.http.post(this.GUPSHUP_API_URL, body, { headers }));
   }
+  
 }
