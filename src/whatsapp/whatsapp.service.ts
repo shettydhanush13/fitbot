@@ -24,7 +24,7 @@ export class WhatsappService {
     if (!text || !phone) return;
 
     if (text.toLowerCase().includes('hi')) {
-      await this.sendMessage(phone, `👋 Welcome to HealthBot! Type "tip" for a wellness tip or "log walk" to track your walk.`);
+      await this.sendMessage(phone, 'Welcome to HealthBot');
     } else if (text.toLowerCase().includes('tip')) {
       const tip = await this.healthService.getHealthTip();
       await this.sendMessage(phone, `💡 Health Tip:\n${tip}`);
@@ -38,10 +38,10 @@ export class WhatsappService {
   async sendMessage(phone: string, message: string) {
     const body = new URLSearchParams({
       channel: 'whatsapp',
-      source: this.BOT_PHONE_NUMBER,      // your sandbox number
+      source: this.BOT_PHONE_NUMBER,
       destination: phone,
-      'src.name': 'fitbot',        // replace with your bot name
-      message: JSON.stringify({           // stringify the message object
+      'src.name': 'Fitospace',
+      message: JSON.stringify({
         type: 'text',
         text: message,
       }),
