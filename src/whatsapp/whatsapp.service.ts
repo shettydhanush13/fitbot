@@ -15,7 +15,6 @@ export class WhatsappService {
   BOT_PHONE_NUMBER = '15557712559';
 
   async handleIncoming(body: any) {
-    console.log({ GUPSHUP_API_KEY: process.env.GUPSHUP_API_KEY });
     const message = body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
     const phone = message?.from;
     const text = message?.text?.body;
@@ -52,8 +51,14 @@ export class WhatsappService {
       'Content-Type': 'application/x-www-form-urlencoded',
       apikey: this.GUPSHUP_API_KEY,
     };
+
+    console.log({ url: this.GUPSHUP_API_URL });
+    console.log(body);
+    console.log(headers);
+
+
   
     const response = await firstValueFrom(this.http.post(this.GUPSHUP_API_URL, body, { headers }));
-    console.log({ response });
+    console.log({ response: response.data });
   }
 }
