@@ -2,11 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { HealthService } from '../health/health.service';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
-import { Twilio } from 'twilio';
+import * as Twilio from 'twilio';
 
 @Injectable()
 export class WhatsappService {
-  private client: Twilio;
+  private client: any;
 
   constructor(
     private healthService: HealthService,
@@ -15,7 +15,7 @@ export class WhatsappService {
     const accountSid = process.env.TWILIO_ACCOUNT_SID;
     const authToken = process.env.TWILIO_AUTH_TOKEN;
 
-    this.client = new Twilio(accountSid, authToken);
+    this.client = Twilio(accountSid, authToken);
   }
 
   GUPSHUP_API_URL = 'https://api.gupshup.io/wa/api/v1/msg';
