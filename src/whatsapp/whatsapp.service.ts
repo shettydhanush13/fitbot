@@ -31,7 +31,7 @@ export class WhatsappService {
     const params = new URLSearchParams();
     params.append('Body', message);
     params.append('From', 'whatsapp:+15557412250');
-    params.append('To', `whatsapp:${to}`);
+    params.append('To', to);
 
     await axios.post(
       `https://api.twilio.com/2010-04-01/Accounts/${process.env.TWILIO_ACCOUNT_SID}/Messages.json`,
