@@ -1,52 +1,105 @@
 import { Injectable } from '@nestjs/common';
-// import { HealthService } from '../health/health.service';
-// import { OpenAIService } from '../openai/openai.service';
-import { Twilio } from 'twilio';
+import { HealthService } from '../health/health.service';
+import { HttpService } from '@nestjs/axios';
+import { firstValueFrom } from 'rxjs';
 
 @Injectable()
 export class WhatsappService {
-  private client: Twilio;
+  constructor(
+    private healthService: HealthService,
+    private http: HttpService,
+  ) {}
 
-  constructor() {
-    this.client = new Twilio(
-      process.env.TWILIO_ACCOUNT_SID,
-      process.env.TWILIO_AUTH_TOKEN,
-    );
-  }
+  GUPSHUP_API_URL = 'https://api.gupshup.io/wa/api/v1/msg';
+  GUPSHUP_API_KEY = process.env.GUPSHUP_API_KEY;
+  BOT_PHONE_NUMBER = '15557712559';
 
-  TWILIO_WHATSAPP_NUMBER = 'whatsapp:+15557412250'; // replace with your Twilio WhatsApp sender
+  async checkSession(phone: string): Promise<boolean> {
+    const url = `https://api.gupshup.io/wa/api/v1/user/session/${phone}`;
+    const headers = {
+      apikey: this.GUPSHUP_API_KEY,
+    };
+  
+    try {
+      const response = await firstValueFrom(this.http.get(url, { headers }));
+      console.log('Session check response:', response.data);
+      return response.data?.exists === true;
+    } catch (error) {
+      console.error('Failed to check session:', error.message);
+      return false;
+    }
+  }  
 
-  async handleIncoming(body: any) {
-    const from = body.From; // "whatsapp:+918971780778"
-    const text = body.Body?.trim();
-
-    console.log({ from, text });
-
-    if (!text || !from) return;
-
-    if (text.toLowerCase() === 'hi') {
-      await this.sendMessage(from, '👋 Welcome to HealthBot');
-    } 
-    else if (text.toLowerCase().includes('tip')) {
-      // const tip = await this.healthService.getHealthTip();
-      const tip = 'tip';
-      await this.sendMessage(from, `💡 Health Tip:\n${tip}`);
-    } 
-    else if (text.toLowerCase().includes('log walk')) {
-      await this.sendMessage(from, `✅ Walk logged. Keep it up!`);
-    } 
-    else {
-      // Send request to LLM
-      // const reply = await this.openAIService.generate(text);
-      await this.sendMessage(from, "🤖 Sorry, I didn't understand.");
+  async sendTemplateMessage(phone: string) {
+    const body = new URLSearchParams({
+      channel: 'whatsapp',
+      source: this.BOT_PHONE_NUMBER,
+      destination: phone,
+      'src.name': 'Fitospace',
+      template: JSON.stringify({
+        id: 'your_template_id', // Replace with your approved template ID
+        params: {}
+      })
+    });
+  
+    const headers = {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      apikey: this.GUPSHUP_API_KEY,
+    };
+  
+    try {
+      const response = await firstValueFrom(this.http.post(this.GUPSHUP_API_URL, body, { headers }));
+      console.log('Template message sent:', response.data);
+    } catch (error) {
+      console.error('Template message failed:', error.response?.data || error.message);
     }
   }
 
-  async sendMessage(to: string, message: string) {
-    return this.client.messages.create({
-      from: this.TWILIO_WHATSAPP_NUMBER,
-      to,
-      body: message,
+  async handleIncoming(body: any) {
+    const message = body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+    const phone = message?.from;
+    const text = message?.text?.body;
+
+    console.log({ phone, text });
+
+    if (!text || !phone) return;
+
+    if (text.toLowerCase().includes('hi')) {
+      await this.sendMessage(phone, 'Welcome to HealthBot');
+    } else if (text.toLowerCase().includes('tip')) {
+      const tip = await this.healthService.getHealthTip();
+      await this.sendMessage(phone, `💡 Health Tip:\n${tip}`);
+    } else if (text.toLowerCase().includes('log walk')) {
+      await this.sendMessage(phone, `✅ Walk logged. Keep it up!`);
+    } else {
+      await this.sendMessage(phone, `🤖 Sorry, I didn't understand. Type "tip" or "log walk"`);
+    }
+  }
+
+  async sendMessage(phone: string, message: string) {
+    const hasSession = await this.checkSession(phone);
+    if (!hasSession) {
+      console.warn(`User ${phone} has no session. Message not sent.`);
+      return;
+    }
+  
+    const body = new URLSearchParams({
+      channel: 'whatsapp',
+      source: this.BOT_PHONE_NUMBER,
+      destination: phone,
+      'src.name': 'Fitospace',
+      message: JSON.stringify({
+        type: 'text',
+        text: message,
+      }),
     });
+  
+    const headers = {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      apikey: this.GUPSHUP_API_KEY,
+    };
+  
+    const response = await firstValueFrom(this.http.post(this.GUPSHUP_API_URL, body, { headers }));
+    console.log({ response: response.data });
   }
 }
