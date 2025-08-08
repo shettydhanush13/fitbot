@@ -33,7 +33,7 @@ export class WhatsappService {
     params.append('From', 'whatsapp:+15557412250');
     params.append('To', to);
 
-    await axios.post(
+    const response = await axios.post(
       `https://api.twilio.com/2010-04-01/Accounts/${process.env.TWILIO_ACCOUNT_SID}/Messages.json`,
       params.toString(),
       {
@@ -44,6 +44,8 @@ export class WhatsappService {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       },
     );
+
+    console.log(response);
 
     // const url = `https://api.twilio.com/2010-04-01/Accounts/${process.env.TWILIO_ACCOUNT_SID}/Messages.json`;
   
