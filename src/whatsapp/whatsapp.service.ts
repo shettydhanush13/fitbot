@@ -1,64 +1,52 @@
 import { Injectable } from '@nestjs/common';
-import { HealthService } from '../health/health.service';
-import { HttpService } from '@nestjs/axios';
-import { firstValueFrom } from 'rxjs';
+// import { HealthService } from '../health/health.service';
+// import { OpenAIService } from '../openai/openai.service';
+import { Twilio } from 'twilio';
 
 @Injectable()
 export class WhatsappService {
-  constructor(
-    private healthService: HealthService,
-    private http: HttpService,
-  ) {}
+  private client: Twilio;
 
-  GUPSHUP_API_URL = 'https://api.gupshup.io/wa/api/v1/msg';
-  GUPSHUP_API_KEY = process.env.GUPSHUP_API_KEY;
-  BOT_PHONE_NUMBER = '15557712559';
+  constructor() {
+    this.client = new Twilio(
+      process.env.TWILIO_ACCOUNT_SID,
+      process.env.TWILIO_AUTH_TOKEN,
+    );
+  }
+
+  TWILIO_WHATSAPP_NUMBER = 'whatsapp:+15557412250'; // replace with your Twilio WhatsApp sender
 
   async handleIncoming(body: any) {
-    const message = body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
-    const phone = message?.from;
-    const text = message?.text?.body;
+    const from = body.From; // "whatsapp:+918971780778"
+    const text = body.Body?.trim();
 
-    console.log({ phone, text });
+    console.log({ from, text });
 
-    if (!text || !phone) return;
+    if (!text || !from) return;
 
-    if (text.toLowerCase().includes('hi')) {
-      await this.sendMessage(phone, 'Welcome to HealthBot');
-    } else if (text.toLowerCase().includes('tip')) {
-      const tip = await this.healthService.getHealthTip();
-      await this.sendMessage(phone, `💡 Health Tip:\n${tip}`);
-    } else if (text.toLowerCase().includes('log walk')) {
-      await this.sendMessage(phone, `✅ Walk logged. Keep it up!`);
-    } else {
-      await this.sendMessage(phone, `🤖 Sorry, I didn't understand. Type "tip" or "log walk"`);
+    if (text.toLowerCase() === 'hi') {
+      await this.sendMessage(from, '👋 Welcome to HealthBot');
+    } 
+    else if (text.toLowerCase().includes('tip')) {
+      // const tip = await this.healthService.getHealthTip();
+      const tip = 'tip';
+      await this.sendMessage(from, `💡 Health Tip:\n${tip}`);
+    } 
+    else if (text.toLowerCase().includes('log walk')) {
+      await this.sendMessage(from, `✅ Walk logged. Keep it up!`);
+    } 
+    else {
+      // Send request to LLM
+      // const reply = await this.openAIService.generate(text);
+      await this.sendMessage(from, "🤖 Sorry, I didn't understand.");
     }
   }
 
-  async sendMessage(phone: string, message: string) {
-    const body = new URLSearchParams({
-      channel: 'whatsapp',
-      source: this.BOT_PHONE_NUMBER,
-      destination: phone,
-      'src.name': 'Fitospace',
-      message: JSON.stringify({
-        type: 'text',
-        text: message,
-      }),
+  async sendMessage(to: string, message: string) {
+    return this.client.messages.create({
+      from: this.TWILIO_WHATSAPP_NUMBER,
+      to,
+      body: message,
     });
-  
-    const headers = {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      apikey: this.GUPSHUP_API_KEY,
-    };
-
-    console.log({ url: this.GUPSHUP_API_URL });
-    console.log(body);
-    console.log(headers);
-
-
-  
-    const response = await firstValueFrom(this.http.post(this.GUPSHUP_API_URL, body, { headers }));
-    console.log({ response: response.data });
   }
 }
