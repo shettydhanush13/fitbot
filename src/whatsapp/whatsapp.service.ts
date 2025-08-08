@@ -2,33 +2,25 @@ import { Injectable } from '@nestjs/common';
 import { HealthService } from '../health/health.service';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
+import { Twilio } from 'twilio';
 
 @Injectable()
 export class WhatsappService {
+  private client: Twilio;
+
   constructor(
     private healthService: HealthService,
     private http: HttpService,
-  ) {}
+  ) {
+    const accountSid = process.env.TWILIO_ACCOUNT_SID;
+    const authToken = process.env.TWILIO_AUTH_TOKEN;
+
+    this.client = new Twilio(accountSid, authToken);
+  }
 
   GUPSHUP_API_URL = 'https://api.gupshup.io/wa/api/v1/msg';
   GUPSHUP_API_KEY = process.env.GUPSHUP_API_KEY;
   BOT_PHONE_NUMBER = '15557712559';
-
-  async checkSession(phone: string): Promise<boolean> {
-    const url = `https://api.gupshup.io/wa/api/v1/user/session/${phone}`;
-    const headers = {
-      apikey: this.GUPSHUP_API_KEY,
-    };
-  
-    try {
-      const response = await firstValueFrom(this.http.get(url, { headers }));
-      console.log('Session check response:', response.data);
-      return response.data?.exists === true;
-    } catch (error) {
-      console.error('Failed to check session:', error.message);
-      return false;
-    }
-  }  
 
   async sendTemplateMessage(phone: string) {
     const body = new URLSearchParams({
@@ -76,13 +68,8 @@ export class WhatsappService {
     }
   }
 
-  async sendMessage(phone: string, message: string) {
-    const hasSession = await this.checkSession(phone);
-    if (!hasSession) {
-      console.warn(`User ${phone} has no session. Message not sent.`);
-      return;
-    }
-  
+  async sendMessage(phone: string, message: string) {  
+    console.log(this.client);
     const body = new URLSearchParams({
       channel: 'whatsapp',
       source: this.BOT_PHONE_NUMBER,
