@@ -3,7 +3,7 @@ import { Document } from 'mongoose';
 
 export type UserBehaviourDocument = UserBehaviour & Document;
 
-@Schema({ timestamps: true })
+@Schema({ collection: 'UserBehaviour', timestamps: true })
 export class UserBehaviour {
   @Prop({ required: true, unique: true })
   phone: string;

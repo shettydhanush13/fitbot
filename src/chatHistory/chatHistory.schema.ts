@@ -3,9 +3,9 @@ import { Document } from 'mongoose';
 
 export type ChatHistoryDocument = ChatHistory & Document;
 
-@Schema({ timestamps: true })
+@Schema({ collection: 'ChatHistory', timestamps: true })
 export class ChatHistory {
-  @Prop({ required: true })
+  @Prop({ index: true, required: true })
   phone: string; // links to user by phone
 
   @Prop({ required: true })
@@ -20,8 +20,12 @@ export class ChatHistory {
   @Prop({ type: [String], default: [] })
   botKeywords: string[]; // top keywords from bot response
 
-  @Prop({ default: () => new Date() })
+  @Prop({ index: true, default: () => new Date() })
   createdAt: Date; // explicit creation date
+
+  // embedding for semantic search (float32[] in Atlas)
+  @Prop({ type: [Number], default: [] })
+  embedding: number[];
 }
 
 export const ChatHistorySchema = SchemaFactory.createForClass(ChatHistory);

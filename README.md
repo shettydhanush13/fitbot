@@ -55,6 +55,6 @@ Nest is [MIT licensed](LICENSE).
 $ docker run -d -p 27017:27017 --name local-mongo mongo:latest   
 
 # to reset db
-$ docker stop local-mongo
+$ docker stop local-mongo docker rm local-mongo
 $ docker rm local-mongo
 ```

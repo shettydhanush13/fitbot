@@ -1,130 +1,123 @@
-import { getToneInstruction, getUserDetailsExerpt, languageInstruction } from "./utils";
+import { UserContext } from "./openAI/openAI.service";
+import { User } from "./user/user.schema";
+import { getToneInstruction, getUserDetailsExcerpt, languageInstruction } from "./utils";
 
-export const getRecipePrompt = (userDetails, userMessage, extraContext?: { topKeywords; cooccurrence }) => {
-  const userInfo = getUserDetailsExerpt(userDetails);
-  const toneInstruction = getToneInstruction(userInfo.age, userInfo.sex);
-  const extraCtxStr = extraContext
-    ? `Extra context:\n- Top Keywords: ${extraContext.topKeywords?.join(', ') || 'none'}\n- Co-occurring Keywords: ${JSON.stringify(extraContext.cooccurrence || {})}`
-    : '';
-
-  return `You are a helpful AI assistant. ${toneInstruction} ${languageInstruction}
-
-    User details (JSON):
-    ${JSON.stringify(userInfo)}
-
-    ${extraCtxStr}
-
-    User request: "${userMessage}"
-
-    Suggest a healthy recipe with simple ingredients tailored to the user’s health goals, diet preference, and allergies.
-
-    When identifying keywords:
-    - Only pick **meaningful and specific** terms that are relevant to the health, food, or recipe context.
-    - Avoid common, generic, or filler words (examples: "quick", "easy", "good", "make", "fix", "fast", "simple", "healthy", "recipe", "food").
-    - Output maximum 5 keywords for both input and output.
-
-    Return only valid JSON (no extra text):
-    {
-      "recipe": {
-        "name": string,
-        "ingredients": [string],
-        "steps": [string],
-        "nutrition": {
-          "calories": number,
-          "protein": string,
-          "carbs": string,
-          "fat": string
-        }
-      },
-      "input_keywords": [string],
-      "output_keywords": [string]
-    }`;
+// 🔹 Helper: Build extra context block only if provided
+const formatExtraContext = (extraContext?: { topKeywords?: string[]; cooccurrence?: any; memory?: string }) => {
+  if (!extraContext) return "";
+  return `Extra context:
+- Top Keywords: ${extraContext.topKeywords?.join(", ") || "none"}
+- Co-occurring Keywords: ${JSON.stringify(extraContext.cooccurrence || {})}
+- Semantic Memory: ${extraContext.memory || "none"}`;
 };
 
-export const getChatWithContextPrompt = (userDetails, userMessage, extraContext?: { topKeywords; cooccurrence }) => {
-  const userInfo = getUserDetailsExerpt(userDetails);
-  const toneInstruction = getToneInstruction(userInfo.age, userInfo.sex);
-  const extraCtxStr = extraContext
-    ? `Extra context:\n- Top Keywords: ${extraContext.topKeywords?.join(', ') || 'none'}\n- Co-occurring Keywords: ${JSON.stringify(extraContext.cooccurrence || {})}`
-    : '';
+// 🔹 Recipe Prompt
+export const getRecipePrompt = (
+  userMessage: string,
+  userDetails: UserContext,
+  extraContext?: { topKeywords?: string[]; cooccurrence?: any }
+) => {
+  const userInfo = getUserDetailsExcerpt(userDetails);
+  return `You are a helpful AI assistant. ${getToneInstruction(userInfo.age, userInfo.sex)} ${languageInstruction}
 
-  return `You are a helpful AI assistant. ${toneInstruction} ${languageInstruction}
+User details (JSON):
+${JSON.stringify(userInfo)}
 
-    User details (JSON):
-    ${JSON.stringify(userInfo)}
+${extraContext ? formatExtraContext(extraContext) : ""}
 
-    ${extraCtxStr}
+User request: "${userMessage}"
 
-    User request: "${userMessage}"
+Instructions:
+- Suggest a healthy recipe tailored to the user’s goals, diet, and allergies.
+- Keep ingredients simple and steps clear.
+- Identify up to 5 **meaningful** input/output keywords (exclude generic/filler words).
 
-    Keep answers short, sweet, and easy to understand.
-    Give gentle, friendly health tips that are encouraging.
-    If useful, mention helpful products lightly, like "I can help you find some if you want."
-
-    When identifying keywords:
-    - Only pick **meaningful and specific** terms that are relevant to the user’s request and your response.
-    - Avoid common, generic, or filler words (examples: "quick", "easy", "good", "make", "fix", "fast", "simple", "healthy", "recipe", "food").
-    - Output exactly 5 keywords for both input and output.
-
-    Return only valid JSON (no extra text):
-    {
-      "response": string,
-      "input_keywords": [string],
-      "output_keywords": [string]
-    }`;
+Return ONLY valid JSON:
+{
+  "recipe": {
+    "name": string,
+    "ingredients": [string],
+    "steps": [string],
+    "nutrition": {
+      "calories": number,
+      "protein": string,
+      "carbs": string,
+      "fat": string
+    }
+  },
+  "input_keywords": [string],
+  "output_keywords": [string]
+}`;
 };
 
+// 🔹 Chat With Context Prompt
+export const getChatWithContextPrompt = (
+  userDetails: UserContext,
+  userMessage: string,
+  extraContext?: { topKeywords?: string[]; cooccurrence?: any; memory?: string }
+) => {
+  const userInfo = getUserDetailsExcerpt(userDetails);
+  return `You are a helpful AI assistant. ${getToneInstruction(userInfo.age, userInfo.sex)} ${languageInstruction}
+
+User details (JSON):
+${JSON.stringify(userInfo)}
+
+${extraContext ? formatExtraContext(extraContext) : ""}
+
+User request: "${userMessage}"
+
+Instructions:
+- Keep answers short, friendly, and encouraging, with gentle health tips.
+- Mention helpful products lightly only if relevant.
+- Only respond if request is **health/wellness related**, else return null.
+- Always output exactly 5 input/output keywords (exclude generic/filler words).
+
+Return ONLY valid JSON:
+{
+  "response": string | null,
+  "input_keywords": [string],
+  "output_keywords": [string]
+}`;
+};
+
+// 🔹 Daily Log + Tip Prompt
 export const getDailyLogAndTipPrompt = (
   tipType: "morning" | "evening",
-  userDetails,
+  userDetails: User,
   question: string,
   userAnswer: string,
-  extraContext?
+  extraContext?: { topKeywords?: string[]; cooccurrence?: any }
 ) => {
-  const userInfo = getUserDetailsExerpt(userDetails);
-  const toneInstruction = getToneInstruction(userInfo.age, userInfo.sex);
-  const extraCtxStr = extraContext
-    ? `Extra context:
-    - Top Keywords: ${extraContext.topKeywords?.join(', ') || 'none'}
-    - Co-occurring Keywords: ${JSON.stringify(extraContext.cooccurrence || {})}`
-        : '';
+  const userInfo = getUserDetailsExcerpt(userDetails);
+  return `You are a helpful AI health assistant. ${getToneInstruction(userInfo.age, userInfo.sex)} ${languageInstruction}
 
-      return `You are a helpful AI health assistant. ${toneInstruction} ${languageInstruction}
+User details (JSON):
+${JSON.stringify(userInfo)}
 
-    User details (JSON):
-    ${JSON.stringify(userInfo)}
+${extraContext ? formatExtraContext(extraContext) : ""}
 
-    ${extraCtxStr}
+Tip Type: ${tipType.toUpperCase()}
 
-    Tip Type: ${tipType.toUpperCase()} (morning or evening)
+Question: "${question}"
+Answer: "${userAnswer}"
 
-    Question asked to user:
-    "${question}"
+Tasks:
+1. Extract structured log:
+   - Morning → { sleep_hours, sleep_quality, mood, goal_readiness }
+   - Evening → { water_glasses, exercised, exercise_type, duration_minutes, meals, diet_followed, mood, goal_achieved }
+   - Use correct types (numbers, booleans, categorical values).
+2. Generate a short, actionable, and encouraging health tip:
+   - Morning → focus on energy/nutrition/activity
+   - Evening → focus on reflection/relaxation/tomorrow prep
+   - Respect diet & allergies
+   - Keep within 1–2 sentences
 
-    User answer:
-    "${userAnswer}"
-
-    Tasks:
-    1. Extract the answer into a structured object suitable for database storage.
-      - For morning: extract fields sleep_hours, sleep_quality, mood, goal_readiness
-      - For evening: extract fields water_glasses, exercised (yes/no), exercise_type, duration_minutes, meals, diet_followed (yes/no), mood, goal_achieved (yes/no)
-      - Ensure numeric fields are numbers, booleans are true/false, and categorical fields match allowed options.
-
-    2. Generate a short, actionable, and friendly health tip based on the user's profile, behavior, and the log.
-      - Morning tips: focus on energy, nutrition, or activity to start the day.
-      - Evening tips: focus on reflection, relaxation, or preparing for tomorrow.
-      - Keep it concise (1–2 sentences) and encouraging.
-      - Respect diet preference and allergies.
-      - Include a gentle motivational note if appropriate.
-
-    Return ONLY valid JSON (no extra text):
-    {
-      "log": { /* structured fields extracted from user answer */ },
-      "tip": {
-        "message": string,
-        "reason": string
-      }
-    }`;
+Return ONLY valid JSON:
+{
+  "log": { ... },
+  "tip": {
+    "message": string,
+    "reason": string
+  }
+}`;
 };
-
-

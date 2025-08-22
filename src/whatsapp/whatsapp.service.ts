@@ -1,9 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { HealthService } from '../health/health.service';
 import { UserService } from '../user/user.service';
 import { User } from 'src/user/user.schema';
 import {
-  calculateAge,
+  calculateAgeFromString,
   calculateBMI,
   parseDOB,
   daysBetweenDates,
@@ -11,9 +11,11 @@ import {
 
 @Injectable()
 export class WhatsappService {
+  private readonly logger = new Logger(WhatsappService.name);
+
   constructor(
-    private healthService: HealthService,
-    private userService: UserService,
+    private readonly healthService: HealthService,
+    private readonly userService: UserService,
   ) {}
 
   async handleIncoming(body: any) {
@@ -23,7 +25,9 @@ export class WhatsappService {
     if (!text || !from) return;
 
     let user = await this.userService.findByPhone(from);
+    console.log({ user });
 
+    // create skeleton user if not found
     if (!user) {
       user = await this.userService.createOrUpdate(from, {
         onboardingStep: 0,
@@ -33,69 +37,55 @@ export class WhatsappService {
 
     const onboardingStep = user.onboardingStep ?? 0;
     const onboardingComplete = user.onboardingComplete ?? false;
+    const lowerText = text.toLowerCase();
 
-    // Fixed greeting if user sends "hi" and onboarding is complete
-    if (text.toLowerCase() === 'hi' && onboardingComplete) {
-      const greeting = `Hi ${user.name || 'there'}! 👋  
-It’s so nice to see you again. You can ask me anything — recipes, healthy tips or even a little motivation 😊  
-BTW the more you interact, the more **health points** you earn (you currently have **${user.points || 0} pts**).  
-What would you like help with today?`;
-
-      return await this.sendMessage(from, greeting);
+    // ✅ Quick-command handling
+    if (lowerText === 'hi' && onboardingComplete) {
+      return this.sendMessage(from, this.greetingMessage(user));
     }
 
-    // Onboarding flow
+    if (lowerText === '/help') {
+      return this.sendMessage(from, this.helpMessage(user));
+    }
+
+    if (lowerText === '/profile') {
+      return this.sendMessage(from, this.profileMessage(user));
+    }
+
+    // ✅ Onboarding flow
     if (!onboardingComplete && onboardingStep < 10) {
-      return await this.handleOnboarding(from, text, user, onboardingStep);
+      return this.handleOnboarding(from, text, user, onboardingStep);
     }
 
-    // Streak update
+    // ✅ Update streak
     const streakMessage = await this.updateStreak(user);
 
-    // TODO: Move to scheduled cron
-    await this.userService.aggregateUserBehaviour();
-
-    // Recipe intent
-    if (text.toLowerCase().includes('recipe')) {
-      const response = await this.healthService.suggestRecipe(text, user);
-      let reply = response.message || "Sorry, couldn't get a recipe right now.";
-      if (streakMessage) reply += `\n\n${streakMessage}`;
-      return await this.sendMessage(from, reply);
+    // ✅ Health features
+    if (lowerText.includes('recipe')) {
+      const { message } = await this.healthService.suggestRecipe(text, user);
+      return this.sendMessage(from, this.appendStreak(message, streakMessage));
     }
 
-    // Log activity
-    if (text.toLowerCase().includes('log')) {
+    if (lowerText.includes('log')) {
       const tip = await this.healthService.logDailyActivity(user, text);
-      return await this.sendMessage(from, tip);
+      return this.sendMessage(from, tip);
     }
 
-    // AI chat fallback
+    // ✅ AI fallback
     const aiReply = await this.healthService.chatWithAI(text, user);
-    let finalReply = aiReply || '';
-    if (streakMessage) finalReply += `\n\n${streakMessage}`;
-    return await this.sendMessage(from, finalReply);
+    return this.sendMessage(from, this.appendStreak(aiReply, streakMessage));
   }
 
-  private async handleOnboarding(
-    from: string,
-    text: string,
-    user: User,
-    step: number,
-  ) {
+  /** =======================
+   * Onboarding Flow
+   * ======================= */
+  private async handleOnboarding(from: string, text: string, user: User, step: number) {
     const updateData: Partial<User> = {};
     let reply = '';
 
     switch (step) {
       case 0:
-        reply = `Hey there! 👋 I’m **Hitha AI**, your friendly wellness companion 🤖  
-        I’ll send you personalised morning and evening nudges based on your goals — and you can ask me any health question, just like talking to a close friend 💛
-        
-        I’ll also keep learning from your messages and daily activity so I can give you smarter and more personalised advice over time.  
-        Don’t worry — everything you share stays completely private and only you have access to it 🔒
-        
-        Before we begin, may I know your lovely name? 🌸  
-        (Complete onboarding to earn **+50 health points** 🎁)`;
-        
+        reply = this.onboardingIntro();
         updateData.onboardingStep = 1;
         break;
 
@@ -107,16 +97,17 @@ When’s your birthday? 🎂 (please use DD-MM-YYYY)`;
         break;
 
       case 2:
-        const dob = parseDOB(text);
-        if (!dob) {
+        const dobString = parseDOB(text);
+        if (!dobString) {
           reply = `Oops 😅 that doesn’t look like a valid date.  
 Please enter in **DD-MM-YYYY** format (e.g. 25-12-1990)`;
           break;
         }
-        updateData.dob = dob.toISOString().slice(0, 10);
-        updateData.age = calculateAge(dob);
+        updateData.dob = dobString;
+        updateData.age = calculateAgeFromString(dobString);
         updateData.onboardingStep = 3;
         reply = `Got it! You’re ${updateData.age} years young 🎉  
+
 What’s your height in **cm**?`;
         break;
 
@@ -130,6 +121,7 @@ What’s your height in **cm**?`;
         const weight = parseFloat(text);
         if (isNaN(weight) || weight <= 0) {
           reply = `That doesn’t look like a valid weight 🤔  
+
 Please enter your weight in kg (e.g. 65.5).`;
           break;
         }
@@ -143,7 +135,8 @@ Please enter your weight in kg (e.g. 65.5).`;
         updateData.sex = text;
         updateData.onboardingStep = 6;
         reply = `Perfect! 🌟 Now let’s set your health **goals** (this also unlocks your **+50 points** 😉).  
-Please type your top goal(s) — separated by commas if more than one.`;
+
+Please type your top goal(s) — (e.g., stay fit, eat healthy, lose weight — you can type multiple)`;
         break;
 
       case 6:
@@ -162,6 +155,7 @@ Please type your top goal(s) — separated by commas if more than one.`;
         updateData.allergies = text;
         updateData.onboardingStep = 9;
         reply = `Almost at the finish line! 💪  
+
 How many meals do you usually have in a day? (2 / 3 / 4+)`;
         break;
 
@@ -171,17 +165,21 @@ How many meals do you usually have in a day? (2 / 3 / 4+)`;
         updateData.onboardingComplete = true;
         updateData.points = (user.points || 0) + 50;
 
-        reply = `🎉 Woohoo — onboarding complete!  
+        reply = `🎉 Woohoo! Onboarding complete!  
 You’ve earned **+50 health points** 🏆  
-From now on I’ll send personalised **morning & evening nudges**, and you can ask me anything (recipes, tips, questions) anytime.  
-Let’s crush your health goals 💪🌿`;
+
+From now on I’ll send personalised **morning & evening nudges** and you can ask me anything anytime (recipes, tips, questions).  
+Let’s crush your health goals together 💪🌿`;
         break;
     }
 
     await this.userService.createOrUpdate(from, updateData);
-    return await this.sendMessage(from, reply);
+    return this.sendMessage(from, reply);
   }
 
+  /** =======================
+   * Streak Handling
+   * ======================= */
   async updateStreak(user: User): Promise<string> {
     const now = new Date();
     const last = user.lastInteraction ? new Date(user.lastInteraction) : null;
@@ -200,7 +198,6 @@ Let’s crush your health goals 💪🌿`;
         message = `New day, fresh start 🌱 You earned **+1 point** for showing up today! (Total: ${user.points} pts)`;
       }
     } else {
-      // very first interaction
       user.currentStreak = 1;
       user.points = (user.points || 0) + 5;
       message = `Welcome! You’ve started a new streak and earned **+5 points** 🙌 (Total: ${user.points} pts)`;
@@ -211,7 +208,72 @@ Let’s crush your health goals 💪🌿`;
     return message;
   }
 
+  /** =======================
+   * Utility Messages
+   * ======================= */
+  private greetingMessage(user: User): string {
+    return `Hi ${user.name || 'there'}! 👋  
+It’s so nice to see you again. You can ask me anything — recipes, healthy tips or even a little motivation 😊  
+BTW the more you interact, the more **health points** you earn (you currently have **${user.points || 0} pts**).  
+What would you like help with today?`;
+  }
+
+  private helpMessage(user: User): string {
+    return `
+Hey ${user.name || 'there'}! 👋  
+Here’s what you can do with Hitha AI:
+
+📝 Profile & Stats ( type /profile to view )
+- View profile details (age, height, weight, BMI)
+- Check points & streaks
+- Update personal info
+
+🥗 Health & Wellness
+- Log daily meals or activity
+- Get personalised health tips curated to your goal and lifestyle
+- Get personalised healthy recipes
+
+💬 Ask Hitha AI
+- Ask any health question (nutrition, fitness, lifestyle)
+
+💡 Tip: The more you interact, the smarter I get! Your data is always private 🔒`;
+  }
+
+  private profileMessage(user: User): string {
+    return `
+📝 **Your Hitha AI Profile**
+
+Name: ${user.name || 'N/A'}
+Age: ${user.age || 'N/A'} years
+Sex: ${user.sex || 'N/A'}
+Height: ${user.height || 'N/A'} cm
+Weight: ${user.weight || 'N/A'} kg
+BMI: ${user.bmi || 'N/A'}
+
+🏆 Health Points: ${user.points || 0}
+🔥 Current Streak: ${user.currentStreak || 0} days
+🎯 Health Goals: ${user.goals?.join(', ') || 'None'}
+
+💡 Tip: Keep interacting with me daily to earn more points and improve your streaks! 🌿`;
+  }
+
+  private onboardingIntro(): string {
+    return `Hey there! 👋 I’m **Hitha AI**, your friendly wellness companion 🤖
+
+I’ll send you personalised nudges based on your goals and you can ask me any health question — like a friendly coach 💛
+
+I’ll also learn from your messages and logs daily to give smarter advice over time. Don’t worry — everything you share is private 🔒
+
+Before we begin, may I know your name? 🌸
+(Complete onboarding to earn **+50 health points** 🎁)`;
+  }
+
+  private appendStreak(message: string, streakMessage: string): string {
+    return streakMessage ? `${message}\n\n${streakMessage}` : message;
+  }
+
   async sendMessage(to: string, message: string) {
-    return message; // (Twilio call here)
+    // TODO: integrate Twilio/WhatsApp API
+    return message;
   }
 }

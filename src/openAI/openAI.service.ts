@@ -58,6 +58,20 @@ export class OpenAIService {
     }
   }
 
+  // make embeddings (text-embedding-3-small => 1536 dims)
+  async createEmbedding(text: string): Promise<number[]> {
+    try {
+      const res = await this.openai.embeddings.create({
+        model: process.env.OPENAI_EMBED_MODEL || 'text-embedding-3-small',
+        input: text,
+      });
+      return res.data[0].embedding as number[];
+    } catch (err) {
+      this.logger.error('Embedding error', err);
+      return [];
+    }
+  }
+
   /**
    * Logs usage and cost estimation based on token count.
    */

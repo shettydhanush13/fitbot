@@ -3,7 +3,7 @@ import { Document } from 'mongoose';
 
 export type UserActivityLogDocument = UserActivityLog & Document;
 
-@Schema({ timestamps: true })
+@Schema({ collection: 'UserActivityLog', timestamps: true })
 export class UserActivityLog {
   @Prop({ required: true }) phone: string; // user identifier
   @Prop({ required: true }) date: Date;    // date of log
